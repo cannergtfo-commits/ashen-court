@@ -93,7 +93,7 @@
     <button id="mode-mobile">Mobile</button>
     <button id="open-sheet">Sheet</button>
     <button id="open-bag">Bag</button>
-    <button id="mode-weather" type="button">Storm</button>
+    <button id="mode-weather" type="button">Clear</button>
   </div>
   <div id="hint">WASD move · click an elf for their sheet · Space strike · Shift dash · E light · Tab swap · C sheet · R rig · M mute · weather cycles clear, rain, storm</div>
   <canvas id="minimap" width="160" height="112"></canvas>
@@ -153,7 +153,7 @@
     <button id="to-title">Title</button>
   </div>
 </div>
-<script type="module" src="court3d.js?v=2"></script>
+<script type="module" src="court3d.js?v=3"></script>
 <script>
 const canvas = document.getElementById('view');
 let ctx = null;
@@ -184,6 +184,7 @@ const files = {
   tree: 'assets/tree.jpg', arch: 'assets/arch.jpg', brazier: 'assets/brazier.jpg',
   statue: 'assets/statue.jpg', graves: 'assets/graves.jpg', lantern: 'assets/lantern.jpg',
   warrior: 'assets/warrior.jpg', mage: 'assets/mage.jpg', maelveth: 'assets/maelveth.jpg',
+  modelVaelor: 'assets/model-vaelor.jpg', modelSereth: 'assets/model-sereth.jpg', modelMaelveth: 'assets/model-maelveth.jpg',
   vaelorSplash: 'assets/vaelor-splash.jpg', serethSplash: 'assets/sereth-splash.jpg', maelvethSplash: 'assets/maelveth-splash.jpg',
   swordCourt: 'assets/sword-court.jpg', swordWitch: 'assets/sword-witch.jpg', swordThorn: 'assets/sword-thorn.jpg',
   bowYew: 'assets/bow-yew.jpg', bowBone: 'assets/bow-bone.jpg', bowWitch: 'assets/bow-witch.jpg',
@@ -192,7 +193,7 @@ const files = {
   arrows: 'assets/arrows.jpg', chestIron: 'assets/chest-iron.jpg', chestBone: 'assets/chest-bone.jpg', chestOpen: 'assets/chest-open.jpg'
 };
 const art = {};
-const noKey = new Set(['stone', 'mud', 'backdrop', 'vaelorSplash', 'serethSplash', 'maelvethSplash', 'splashCourt', 'splashWitch', 'splashThorn', 'splashYew', 'splashBonebow', 'splashWitchbow']);
+const noKey = new Set(['stone', 'mud', 'backdrop', 'vaelorSplash', 'serethSplash', 'maelvethSplash', 'modelVaelor', 'modelSereth', 'modelMaelveth', 'splashCourt', 'splashWitch', 'splashThorn', 'splashYew', 'splashBonebow', 'splashWitchbow']);
 
 function loadImage(src) {
   return new Promise((res, rej) => {

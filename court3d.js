@@ -3,19 +3,19 @@ import * as THREE from './vendor/three.module.js';
 const S = 0.02;
 const Court3D = {
   ready: false,
-  weather: 'storm',
+  weather: 'clear',
   mount(canvas, art, props, world) {
     this.canvas = canvas;
     this.art = art;
     this.world = world;
     this.scene = new THREE.Scene();
-    this.scene.background = new THREE.Color('#070b12');
-    this.scene.fog = new THREE.FogExp2('#0b1218', 0.035);
+    this.scene.background = new THREE.Color('#1a2433');
+    this.scene.fog = new THREE.FogExp2('#243044', 0.01);
     this.camera = new THREE.PerspectiveCamera(48, 1, 0.1, 120);
     this.renderer = new THREE.WebGLRenderer({ canvas, antialias: true, powerPreference: 'high-performance' });
     this.renderer.setPixelRatio(Math.min(devicePixelRatio || 1, 2));
     this.renderer.toneMapping = THREE.ACESFilmicToneMapping;
-    this.renderer.toneMappingExposure = 1.08;
+    this.renderer.toneMappingExposure = 1.55;
     this.renderer.outputColorSpace = THREE.SRGBColorSpace;
     this.renderer.shadowMap.enabled = true;
     this.renderer.shadowMap.type = THREE.PCFShadowMap;
@@ -28,10 +28,10 @@ const Court3D = {
     this.flash = 0;
     this.boltTimer = 2.4;
 
-    const hemi = new THREE.HemisphereLight('#8ea4c4', '#1a140e', 0.45);
+    const hemi = new THREE.HemisphereLight('#f2f6ff', '#8a7660', 1.25);
     this.scene.add(hemi);
-    this.moon = new THREE.DirectionalLight('#d5e2ff', 1.7);
-    this.moon.position.set(-14, 26, 10);
+    this.moon = new THREE.DirectionalLight('#fff6e4', 3.1);
+    this.moon.position.set(-10, 22, 12);
     this.moon.castShadow = true;
     this.moon.shadow.mapSize.set(2048, 2048);
     this.moon.shadow.camera.near = 2;
@@ -43,10 +43,13 @@ const Court3D = {
     this.moon.shadow.bias = -0.0004;
     this.scene.add(this.moon);
     this.scene.add(this.moon.target);
-    this.rim = new THREE.DirectionalLight('#6f8cff', 0.45);
-    this.rim.position.set(10, 8, -12);
+    this.rim = new THREE.DirectionalLight('#d7e4ff', 1.15);
+    this.rim.position.set(8, 12, -6);
     this.scene.add(this.rim);
-    this.ambient = new THREE.AmbientLight('#1c2430', 0.25);
+    this.fill = new THREE.DirectionalLight('#ffe7c4', 0.9);
+    this.fill.position.set(6, 9, 14);
+    this.scene.add(this.fill);
+    this.ambient = new THREE.AmbientLight('#f4efe4', 0.72);
     this.scene.add(this.ambient);
 
     const moonBall = new THREE.Mesh(
@@ -91,7 +94,7 @@ const Court3D = {
 
     const ground = new THREE.Mesh(
       new THREE.PlaneGeometry(world.w * S + 8, world.h * S + 8),
-      new THREE.MeshStandardMaterial({ map: this.stone, roughness: 0.92, metalness: 0.04, color: '#6a6258' })
+      new THREE.MeshStandardMaterial({ map: this.stone, roughness: 0.84, metalness: 0.02, color: '#c8bfb0' })
     );
     ground.rotation.x = -Math.PI / 2;
     ground.receiveShadow = true;
@@ -165,15 +168,17 @@ const Court3D = {
   applyWeather() {
     const storm = this.weather === 'storm';
     const wet = this.weather !== 'clear';
-    this.scene.fog.density = storm ? 0.055 : wet ? 0.04 : 0.02;
+    this.scene.fog.density = storm ? 0.02 : wet ? 0.012 : 0.007;
     this.rain.visible = wet;
-    this.rain.material.opacity = storm ? 0.7 : 0.4;
+    this.rain.material.opacity = storm ? 0.45 : 0.28;
     if (this.ground) {
-      this.ground.material.roughness = wet ? 0.28 : 0.9;
-      this.ground.material.metalness = wet ? 0.22 : 0.04;
-      this.ground.material.color.set(wet ? '#4a514c' : '#6a6258');
+      this.ground.material.roughness = wet ? 0.45 : 0.82;
+      this.ground.material.metalness = wet ? 0.08 : 0.02;
+      this.ground.material.color.set(wet ? '#aeb6ae' : '#d5cbb8');
     }
-    this.moon.intensity = storm ? 0.7 : 1.7;
+    this.baseMoon = storm ? 2.5 : 3.1;
+    this.moon.intensity = this.baseMoon;
+    this.ambient.intensity = storm ? 0.62 : 0.72;
   },
   to3(x, y, lift) {
     const w = this.world;
@@ -326,12 +331,11 @@ const Court3D = {
     }
     if (this.flash > 0) {
       this.flash = Math.max(0, this.flash - dt * 3.2);
-      this.ambient.intensity = 0.25 + this.flash * 2.4;
-      this.moon.intensity = 0.7 + this.flash * 3;
-    } else if (this.weather === 'storm') {
-      this.ambient.intensity = 0.18;
+      this.ambient.intensity = 0.72 + this.flash * 1.2;
+      this.moon.intensity = (this.baseMoon || 3.1) + this.flash * 2;
     } else {
-      this.ambient.intensity = 0.25;
+      this.ambient.intensity = this.weather === 'storm' ? 0.62 : 0.72;
+      this.moon.intensity = this.baseMoon || 3.1;
     }
   },
   syncShades(shades) {
@@ -404,127 +408,167 @@ function limb(parent, len, radius, material) {
   return joint;
 }
 
-function buildElf(kind, court) {
-  const dark = kind === 'foe';
-  const mage = kind === 'mage';
-  const skin = std(dark ? '#8e97a6' : mage ? '#d2c0a4' : '#e0cbb0', { roughness: 0.72, metalness: 0.02, map: court.skinTex });
-  const cloth = std(dark ? '#16181e' : mage ? '#17362e' : '#2c261c', { roughness: 0.86 });
-  const metal = std(dark ? '#8b929c' : mage ? '#8fd6b0' : '#c6a56a', {
-    roughness: dark ? 0.32 : 0.42,
-    metalness: 0.74,
-    map: dark ? court.armorTex : null
-  });
-  const hairMat = std(dark ? '#07080c' : mage ? '#241432' : '#2a1a12', { roughness: 0.55 });
-  const root = new THREE.Group();
-  const hips = pivot(root, 0, 0.96, 0);
-  addMesh(hips, new THREE.Mesh(new THREE.BoxGeometry(0.28, 0.16, 0.18), cloth));
-  const spine = pivot(hips, 0, 0.12, 0);
-  addMesh(spine, new THREE.Mesh(new THREE.BoxGeometry(0.26, 0.22, 0.16), cloth), 0, 0.1, 0);
-  const chest = pivot(spine, 0, 0.24, 0);
-  addMesh(chest, new THREE.Mesh(new THREE.BoxGeometry(dark ? 0.46 : 0.36, 0.34, 0.2), dark ? metal : cloth), 0, 0.14, 0);
-  if (dark) {
-    const plate = new THREE.Mesh(new THREE.BoxGeometry(0.28, 0.3, 0.04), std('#ffffff', { map: court.portrait, roughness: 0.5, metalness: 0.25 }));
-    addMesh(chest, plate, 0, 0.14, 0.12);
-    for (const side of [-1, 1]) {
-      const spike = new THREE.Mesh(new THREE.ConeGeometry(0.06, 0.28, 5), metal);
-      spike.position.set(side * 0.26, 0.32, 0);
-      spike.rotation.z = side * -0.5;
-      spike.castShadow = true;
-      chest.add(spike);
+function sliceFigure(img) {
+  const c = document.createElement('canvas');
+  c.width = img.width;
+  c.height = img.height;
+  const g = c.getContext('2d', { willReadFrequently: true });
+  g.drawImage(img, 0, 0);
+  const im = g.getImageData(0, 0, c.width, c.height);
+  const d = im.data;
+  let minX = c.width, minY = c.height, maxX = 0, maxY = 0;
+  for (let y = 0; y < c.height; y++) {
+    for (let x = 0; x < c.width; x++) {
+      const i = (y * c.width + x) * 4;
+      const r = d[i], gv = d[i + 1], b = d[i + 2];
+      const mag = r > 140 && b > 140 && gv < 150 && (r + b) > gv * 2.1 && Math.abs(r - b) < 90;
+      if (mag) { d[i + 3] = 0; continue; }
+      if (d[i + 3] < 16) continue;
+      if (x < minX) minX = x;
+      if (y < minY) minY = y;
+      if (x > maxX) maxX = x;
+      if (y > maxY) maxY = y;
     }
-    const cape = new THREE.Mesh(new THREE.PlaneGeometry(0.62, 1.05), std('#101218', { map: court.portrait, roughness: 0.8, side: THREE.DoubleSide }));
-    cape.position.set(0, -0.05, -0.16);
-    chest.add(cape);
   }
-  const head = pivot(chest, 0, 0.36, 0);
-  const skull = new THREE.Mesh(new THREE.SphereGeometry(0.135, 18, 14), skin);
-  skull.scale.set(0.92, 1.12, 0.95);
-  skull.castShadow = true;
-  skull.position.y = 0.1;
-  head.add(skull);
-  for (const side of [-1, 1]) {
-    const ear = new THREE.Mesh(new THREE.ConeGeometry(0.04, dark ? 0.18 : 0.12, 4), skin);
-    ear.position.set(side * 0.12, 0.12, 0.02);
-    ear.rotation.z = side * -1.15;
-    head.add(ear);
-    const eye = new THREE.Mesh(new THREE.SphereGeometry(0.018, 8, 8), std(dark ? '#ff6a4a' : '#1a120e', { emissive: dark ? '#802010' : '#000000', emissiveIntensity: dark ? 0.8 : 0, roughness: 0.3 }));
-    eye.position.set(side * 0.045, 0.12, 0.11);
-    head.add(eye);
+  g.putImageData(im, 0, 0);
+  const bw = Math.max(1, maxX - minX);
+  const bh = Math.max(1, maxY - minY);
+  function crop(nx, ny, nw, nh) {
+    const out = document.createElement('canvas');
+    const sx = minX + nx * bw;
+    const sy = minY + ny * bh;
+    const sw = Math.max(2, nw * bw);
+    const sh = Math.max(2, nh * bh);
+    out.width = Math.max(2, Math.ceil(sw));
+    out.height = Math.max(2, Math.ceil(sh));
+    out.getContext('2d').drawImage(c, sx, sy, sw, sh, 0, 0, out.width, out.height);
+    const tex = new THREE.CanvasTexture(out);
+    tex.colorSpace = THREE.SRGBColorSpace;
+    tex.needsUpdate = true;
+    return { tex, aspect: out.width / out.height };
   }
-  const hair = new THREE.Mesh(new THREE.BoxGeometry(0.24, dark ? 0.62 : 0.3, 0.18), hairMat);
-  hair.position.set(0, dark ? 0.0 : 0.18, dark ? -0.02 : -0.02);
-  hair.castShadow = true;
-  head.add(hair);
+  return {
+    head: crop(0.3, 0.0, 0.4, 0.16),
+    torso: crop(0.24, 0.14, 0.52, 0.28),
+    armImgL: crop(0.0, 0.15, 0.3, 0.2),
+    foreImgL: crop(0.0, 0.32, 0.3, 0.2),
+    armImgR: crop(0.7, 0.15, 0.3, 0.2),
+    foreImgR: crop(0.7, 0.32, 0.3, 0.22),
+    thighImgL: crop(0.5, 0.42, 0.28, 0.26),
+    shinImgL: crop(0.5, 0.66, 0.28, 0.34),
+    thighImgR: crop(0.22, 0.42, 0.28, 0.26),
+    shinImgR: crop(0.22, 0.66, 0.28, 0.34)
+  };
+}
 
-  const armL = limb(chest, 0.28, 0.048, skin);
-  armL.position.set(0.24, 0.22, 0);
-  const foreL = limb(armL, 0.26, 0.04, mage ? std('#8fd6b0', { emissive: '#1c4a3a', emissiveIntensity: 0.35, metalness: 0.2 }) : skin);
-  foreL.position.y = -0.28;
-  const armR = limb(chest, 0.28, 0.05, dark ? metal : skin);
-  armR.position.set(-0.24, 0.22, 0);
-  const foreR = limb(armR, 0.26, 0.042, dark ? metal : skin);
-  foreR.position.y = -0.28;
-  const sword = new THREE.Group();
-  const blade = new THREE.Mesh(
-    new THREE.BoxGeometry(dark ? 0.045 : 0.035, dark ? 0.86 : 0.7, 0.012),
-    std('#d5dde6', { metalness: 0.88, roughness: 0.22 })
+function limbCard(part, height) {
+  const width = Math.max(0.08, height * part.aspect);
+  const mesh = new THREE.Mesh(
+    new THREE.PlaneGeometry(width, height),
+    new THREE.MeshStandardMaterial({
+      map: part.tex, transparent: true, alphaTest: 0.35, roughness: 0.5, metalness: 0.05,
+      side: THREE.DoubleSide
+    })
   );
-  blade.position.y = 0.32;
-  if (dark) blade.rotation.z = 0.42;
-  blade.castShadow = true;
-  sword.add(blade);
-  const guard = new THREE.Mesh(new THREE.BoxGeometry(0.18, 0.035, 0.04), metal);
-  sword.add(guard);
-  sword.position.y = -0.26;
-  foreR.add(sword);
+  mesh.position.y = -height / 2;
+  mesh.castShadow = true;
+  mesh.receiveShadow = true;
+  const slab = new THREE.Mesh(
+    new THREE.BoxGeometry(width * 0.45, height * 0.8, 0.06),
+    new THREE.MeshStandardMaterial({ color: '#3a332c', roughness: 0.7 })
+  );
+  slab.position.y = -height / 2;
+  slab.position.z = -0.035;
+  slab.castShadow = true;
+  const joint = new THREE.Group();
+  joint.add(slab);
+  joint.add(mesh);
+  return joint;
+}
 
-  const thighL = limb(hips, 0.42, 0.075, cloth);
-  thighL.position.x = 0.1;
-  const shinL = limb(thighL, 0.4, 0.055, dark ? metal : cloth);
-  shinL.position.y = -0.42;
-  const footL = addMesh(shinL, new THREE.Mesh(new THREE.BoxGeometry(0.1, 0.06, 0.2), metal), 0, -0.42, 0.04);
-  const thighR = limb(hips, 0.42, 0.075, cloth);
-  thighR.position.x = -0.1;
-  const shinR = limb(thighR, 0.4, 0.055, dark ? metal : cloth);
+function buildElf(kind, court) {
+  const src = kind === 'foe' ? court.art.modelMaelveth : kind === 'mage' ? court.art.modelSereth : court.art.modelVaelor;
+  const parts = sliceFigure(src);
+  const root = new THREE.Group();
+  const hips = pivot(root, 0, 0.92, 0);
+  const spine = pivot(hips, 0, 0.08, 0);
+  const chest = pivot(spine, 0, 0.06, 0);
+  const torso = limbCard(parts.torso, 0.62);
+  torso.position.y = 0.28;
+  chest.add(torso);
+  const head = pivot(chest, 0, 0.58, 0);
+  head.add(limbCard(parts.head, 0.36));
+  const armR = limbCard(parts.armImgL, 0.34);
+  armR.position.set(-0.2, 0.22, 0);
+  chest.add(armR);
+  const foreR = limbCard(parts.foreImgL, 0.36);
+  foreR.position.y = -0.34;
+  armR.add(foreR);
+  const armL = limbCard(parts.armImgR, 0.34);
+  armL.position.set(0.2, 0.22, 0);
+  chest.add(armL);
+  const foreL = limbCard(parts.foreImgR, 0.34);
+  foreL.position.y = -0.34;
+  armL.add(foreL);
+  const thighR = limbCard(parts.thighImgR, 0.42);
+  thighR.position.set(-0.09, -0.02, 0);
+  hips.add(thighR);
+  const shinR = limbCard(parts.shinImgR, 0.46);
   shinR.position.y = -0.42;
-  addMesh(shinR, new THREE.Mesh(new THREE.BoxGeometry(0.1, 0.06, 0.2), metal), 0, -0.42, 0.04);
-
-  const bar = new THREE.Mesh(new THREE.PlaneGeometry(0.62, 0.05), new THREE.MeshBasicMaterial({ color: '#c44752' }));
-  bar.position.set(0, 2.05, 0);
+  thighR.add(shinR);
+  const footR = pivot(shinR, 0, -0.46, 0.02);
+  const thighL = limbCard(parts.thighImgL, 0.42);
+  thighL.position.set(0.09, -0.02, 0);
+  hips.add(thighL);
+  const shinL = limbCard(parts.shinImgL, 0.46);
+  shinL.position.y = -0.42;
+  thighL.add(shinL);
+  const footL = pivot(shinL, 0, -0.46, 0.02);
+  const bar = new THREE.Mesh(new THREE.PlaneGeometry(0.7, 0.055), new THREE.MeshBasicMaterial({ color: '#e15a5a' }));
+  bar.position.set(0, 1.85, 0);
   root.add(bar);
-  return { root, hips, spine, chest, head, armL, armR, foreL, foreR, thighL, thighR, shinL, shinR, bar, sword, footL };
+  return { root, hips, spine, chest, head, armL, armR, foreL, foreR, thighL, thighR, shinL, shinR, footL, footR, bar };
 }
 
 function poseElf(rig, e, court) {
   const b = e.bones;
+  const moving = e.speed() > 18;
   rig.root.visible = e.hp > 0;
   rig.root.position.copy(court.to3(e.x, e.y, 0));
-  const face = e.facing >= 0 ? -Math.PI / 2 : Math.PI / 2;
-  rig.root.rotation.y = face;
-  rig.hips.rotation.z = b.lean || 0;
-  rig.hips.position.y = 0.96 + (b.hip || 0) * 0.003;
-  rig.spine.rotation.x = (b.chest || 0) * 0.6;
-  rig.chest.rotation.x = (b.chest || 0);
-  rig.head.rotation.x = b.head || 0;
+  rig.root.rotation.y = e.facing >= 0 ? -Math.PI / 2 : Math.PI / 2;
+  const bob = Math.abs(Math.sin(e.phase || 0)) * (moving ? 0.045 : 0.012);
+  rig.hips.position.y = 0.92 + bob + (b.hip || 0) * 0.002;
+  rig.hips.rotation.z = (b.lean || 0) * 0.8;
+  rig.hips.rotation.y = ((b.lLeg || 0) - (b.rLeg || 0)) * 0.18;
+  rig.spine.rotation.y = -rig.hips.rotation.y * 0.7;
+  rig.spine.rotation.x = (b.chest || 0) * 0.8;
+  rig.chest.rotation.x = Math.sin(e.phase || 0) * (moving ? 0.04 : 0.01);
+  rig.head.rotation.x = (b.head || 0) - rig.chest.rotation.x;
+  rig.head.rotation.y = -rig.hips.rotation.y * 0.4;
   rig.thighL.rotation.x = b.lLeg || 0;
   rig.thighR.rotation.x = b.rLeg || 0;
-  rig.shinL.rotation.x = Math.max(0, -(b.lLeg || 0)) * 0.85;
-  rig.shinR.rotation.x = Math.max(0, -(b.rLeg || 0)) * 0.85;
-  rig.armL.rotation.x = b.lArm || 0;
-  rig.foreL.rotation.x = Math.max(0, b.lArm || 0) * 0.45;
-  let arm = b.rArm || 0;
-  let elbow = arm < -0.3 ? -0.45 : 0.1;
+  rig.shinL.rotation.x = Math.max(0, b.lLeg || 0) * 1.15;
+  rig.shinR.rotation.x = Math.max(0, b.rLeg || 0) * 1.15;
+  rig.footL.rotation.x = -(rig.thighL.rotation.x + rig.shinL.rotation.x);
+  rig.footR.rotation.x = -(rig.thighR.rotation.x + rig.shinR.rotation.x);
+  rig.armL.rotation.x = (b.lArm || 0) * 0.9;
+  rig.armL.rotation.z = 0.15;
+  rig.foreL.rotation.x = Math.max(0.05, (b.lArm || 0) * 0.35);
+  let arm = (b.rArm || 0) * 0.9;
+  let elbow = Math.max(0.08, -arm * 0.25);
+  rig.chest.rotation.y = 0;
   if (e.attackT > 0) {
-    const swing = Math.sin((1 - Math.min(1, e.attackT / 0.44)) * Math.PI);
-    arm = -1.35 + swing * 2.1;
-    elbow = -0.2 - swing * 0.4;
-    rig.chest.rotation.y = swing * 0.35 * (e.facing || 1);
-  } else {
-    rig.chest.rotation.y = 0;
+    const u = 1 - Math.min(1, e.attackT / 0.44);
+    const swing = Math.sin(u * Math.PI);
+    arm = -2.2 + swing * 2.6;
+    elbow = 0.2 + (1 - swing) * 0.9;
+    rig.chest.rotation.y = (swing - 0.2) * 0.45;
+    rig.hips.rotation.y += swing * 0.2;
   }
   rig.armR.rotation.x = arm;
+  rig.armR.rotation.z = -0.15;
   rig.foreR.rotation.x = elbow;
-  const ratio = Math.max(0.04, e.hp / Math.max(1, (e.base && e.base.maxHp) || e.hp));
+  const ratio = Math.max(0.05, e.hp / Math.max(1, (e.base && e.base.maxHp) || e.hp));
   rig.bar.scale.x = ratio;
   rig.bar.lookAt(court.camera.position);
 }
