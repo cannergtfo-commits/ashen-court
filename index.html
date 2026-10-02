@@ -93,8 +93,9 @@
     <button id="mode-mobile">Mobile</button>
     <button id="open-sheet">Sheet</button>
     <button id="open-bag">Bag</button>
+    <button id="mode-weather" type="button">Storm</button>
   </div>
-  <div id="hint">WASD move · click an elf for their sheet · Space strike · Shift dash · E light · Tab swap · C sheet · R rig · M mute</div>
+  <div id="hint">WASD move · click an elf for their sheet · Space strike · Shift dash · E light · Tab swap · C sheet · R rig · M mute · weather cycles clear, rain, storm</div>
   <canvas id="minimap" width="160" height="112"></canvas>
 </div>
 <div id="touch">
@@ -152,9 +153,10 @@
     <button id="to-title">Title</button>
   </div>
 </div>
+<script type="module" src="court3d.js?v=2"></script>
 <script>
 const canvas = document.getElementById('view');
-const ctx = canvas.getContext('2d');
+let ctx = null;
 const mini = document.getElementById('minimap');
 const mctx = mini.getContext('2d');
 const WORLD = { w: 3600, h: 2500 };
@@ -697,7 +699,8 @@ function update(dt) {
     controlled.name + '  hip ' + b.hip.toFixed(1) +
     '  Larm ' + b.lArm.toFixed(2) + '  Rarm ' + b.rArm.toFixed(2) +
     '\nLleg ' + b.lLeg.toFixed(2) + '  Rleg ' + b.rLeg.toFixed(2) +
-    '  lean ' + b.lean.toFixed(2) + (showRig ? '  overlay on' : '  overlay off');
+    '  lean ' + b.lean.toFixed(2) + (showRig ? '  bones on' : '  bones off') +
+    (window.Court3D && Court3D.ready ? '  ' + Court3D.weatherName() : '');
   const n = litCount();
   document.getElementById('questline').textContent = n < 3
     ? 'Open the skull chests for blades and bows. Braziers lit: ' + n + ' / 3.'
@@ -903,6 +906,15 @@ function drawElf(e) {
 }
 
 function draw() {
+  if (window.Court3D && Court3D.ready) {
+    Court3D.frame({
+      actors: [player, companion, foe],
+      props, shades, bolts, controlled, showRig
+    });
+    drawMini();
+    return;
+  }
+  if (!ctx) ctx = canvas.getContext('2d');
   const w = canvas.width, h = canvas.height;
   ctx.clearRect(0, 0, w, h);
   ctx.save();
@@ -1005,7 +1017,8 @@ function drawMini() {
 }
 
 function resize() {
-  canvas.width = innerWidth; canvas.height = innerHeight;
+  if (window.Court3D && Court3D.ready) Court3D.resize();
+  else canvas.width = innerWidth, canvas.height = innerHeight;
 }
 function isMobile() {
   if (layout === 'mobile') return true;
@@ -1164,10 +1177,17 @@ addEventListener('keydown', e => {
   if (e.code === 'Enter' && !started) { beginGame(); e.preventDefault(); }
 });
 addEventListener('keyup', e => keys.delete(e.code));
-canvas.addEventListener('pointerdown', e => {
+function setAim(e) {
   const r = canvas.getBoundingClientRect();
+  if (window.Court3D && Court3D.ready) {
+    const p = Court3D.pick(e.clientX, e.clientY, r);
+    if (p) { input.aimX = p.x; input.aimY = p.y; return; }
+  }
   input.aimX = e.clientX - r.left + cam.x;
   input.aimY = e.clientY - r.top + cam.y;
+}
+canvas.addEventListener('pointerdown', e => {
+  setAim(e);
   const hit = elfAt(input.aimX, input.aimY);
   if (hit) {
     selected = hit;
@@ -1177,11 +1197,7 @@ canvas.addEventListener('pointerdown', e => {
   }
   if (!isMobile()) input.attack = true;
 });
-canvas.addEventListener('pointermove', e => {
-  const r = canvas.getBoundingClientRect();
-  input.aimX = e.clientX - r.left + cam.x;
-  input.aimY = e.clientY - r.top + cam.y;
-});
+canvas.addEventListener('pointermove', e => { setAim(e); });
 
 const stick = document.getElementById('stick');
 const knob = document.getElementById('knob');
@@ -1219,6 +1235,10 @@ document.getElementById('sheet').addEventListener('pointerdown', e => { if (e.ta
 document.getElementById('mode-auto').onclick = () => { layout = 'auto'; applyLayout(); };
 document.getElementById('mode-pc').onclick = () => { layout = 'pc'; applyLayout(); };
 document.getElementById('mode-mobile').onclick = () => { layout = 'mobile'; applyLayout(); };
+document.getElementById('mode-weather').onclick = () => {
+  if (!window.Court3D || !Court3D.ready) return;
+  document.getElementById('mode-weather').textContent = Court3D.cycleWeather();
+};
 
 function beginGame() {
   if (!ready) {
@@ -1266,6 +1286,8 @@ document.getElementById('to-title').onclick = showTitle;
   }
   buildProps();
   spawnElves();
+  for (let i = 0; i < 80 && !window.Court3D; i++) await new Promise(r => setTimeout(r, 25));
+  if (window.Court3D) Court3D.mount(canvas, art, props, WORLD);
   applyLayout();
   ready = true;
   document.getElementById('bootstatus').textContent = 'Court is set. Press Start.';

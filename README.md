@@ -1,6 +1,6 @@
 # Ashen Court
 
-A dark-fantasy court you can walk. Vaelor and Sereth share one bone rig. Maelveth waits on the path and only fights if you ask.
+Maelveth, Vaelor, and Sereth are boned 3D figures. Maelveth wears a modeled armor set textured from his portrait. The court renders with moon shadows, a wet stone ground, fog, and a storm. The Storm button cycles clear, rain, and storm.
 
 ## Play
 
