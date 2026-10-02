@@ -1,0 +1,1279 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no" />
+<title>Ashen Court — Dark Fantasy Demo</title>
+<style>
+  :root { color-scheme: dark; }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; height: 100%; background: #07080c; overflow: hidden; font-family: "Palatino Linotype", Palatino, Georgia, serif; color: #e7e1d4; }
+  #view { position: fixed; inset: 0; width: 100%; height: 100%; display: block; touch-action: none; cursor: crosshair; }
+  #hud, #touch, #boot, #toast { position: fixed; pointer-events: none; z-index: 2; }
+  #hud { inset: 0; }
+  .panel { pointer-events: none; background: rgba(8, 10, 14, 0.62); border: 1px solid rgba(214, 196, 150, 0.22); border-radius: 10px; padding: 10px 12px; backdrop-filter: blur(4px); }
+  #quest { top: 14px; left: 14px; position: absolute; max-width: min(420px, calc(100vw - 28px)); }
+  #quest h1 { margin: 0 0 4px; font-size: 18px; letter-spacing: 0.12em; text-transform: uppercase; font-weight: 600; }
+  #quest p { margin: 0; font-size: 13px; line-height: 1.35; color: #c9c0ae; }
+  #rigread { margin-top: 8px; font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: 11px; color: #9fb7a4; white-space: pre; }
+  #modes { position: absolute; top: 14px; right: 14px; display: flex; gap: 6px; pointer-events: auto; }
+  #modes button, #touch button { pointer-events: auto; border: 1px solid rgba(214, 196, 150, 0.35); background: rgba(12, 14, 18, 0.78); color: #efe7d6; border-radius: 999px; padding: 8px 12px; font: inherit; font-size: 13px; }
+  #modes button.active { background: #2a2418; border-color: #d6c496; }
+  #hint { position: absolute; left: 14px; bottom: 14px; font-size: 12px; color: #b7b0a2; max-width: 460px; }
+  #minimap { position: absolute; right: 14px; bottom: 14px; width: 160px; height: 112px; border-radius: 8px; border: 1px solid rgba(214, 196, 150, 0.28); background: rgba(6, 8, 10, 0.7); }
+  #touch { inset: 0; display: none; }
+  #touch.show { display: block; }
+  #stick { position: absolute; left: 22px; bottom: 22px; width: 128px; height: 128px; border-radius: 50%; border: 2px solid rgba(214, 196, 150, 0.35); background: rgba(8, 10, 14, 0.35); pointer-events: auto; touch-action: none; }
+  #knob { position: absolute; left: 40px; top: 40px; width: 48px; height: 48px; border-radius: 50%; background: rgba(214, 196, 150, 0.78); }
+  .actions { position: absolute; right: 16px; bottom: 22px; display: grid; grid-template-columns: 74px 74px; gap: 10px; }
+  #touch button { width: 74px; height: 74px; border-radius: 50%; font-size: 12px; letter-spacing: 0.04em; }
+  #btn-attack { background: rgba(92, 28, 36, 0.85); }
+  #boot { inset: 0; display: flex; align-items: center; justify-content: center; background: radial-gradient(circle at 50% 40%, #1a2230, #07080c 70%); pointer-events: auto; z-index: 8; }
+  #boot.gone { display: none !important; }
+  #pause { position: fixed; inset: 0; display: none; align-items: center; justify-content: center; background: rgba(4, 6, 10, 0.72); pointer-events: auto; z-index: 7; }
+  #pause.show { display: flex; }
+  #boot .card, #pause .card { text-align: center; max-width: 560px; padding: 28px; }
+  #boot h1, #pause h1 { font-weight: 500; letter-spacing: 0.18em; text-transform: uppercase; margin-bottom: 8px; }
+  #boot p, #pause p { color: #c9c0ae; line-height: 1.45; }
+  #boot button, #pause button { pointer-events: auto; margin: 8px 6px 0; padding: 12px 22px; border-radius: 999px; border: 1px solid #d6c496; background: #1c1812; color: #efe7d6; font: inherit; letter-spacing: 0.08em; }
+  #toast { left: 50%; bottom: 18%; transform: translateX(-50%); background: rgba(8,10,14,0.8); border: 1px solid rgba(214,196,150,0.3); padding: 8px 14px; border-radius: 999px; opacity: 0; transition: opacity 0.3s; font-size: 14px; }
+  #toast.on { opacity: 1; }
+  body.mobile #hint { display: none; }
+  body.mobile #minimap { display: none; }
+  #party { margin-top: 8px; display: flex; flex-direction: column; gap: 6px; }
+  .pframe { cursor: pointer; pointer-events: auto; }
+  .pframe b { font-size: 12px; letter-spacing: 0.06em; }
+  .bar { height: 7px; border-radius: 99px; background: #1c2129; overflow: hidden; margin-top: 3px; border: 1px solid rgba(255,255,255,0.06); }
+  .bar > i { display: block; height: 100%; width: 0; }
+  .bar.hp > i { background: linear-gradient(90deg, #6d2430, #d4545a); }
+  .bar.fp > i { background: linear-gradient(90deg, #1d4a44, #7ddec0); }
+  .pmeta { font-size: 10px; color: #b7b0a2; font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; }
+  #sheet { position: fixed; inset: 0; z-index: 6; display: none; align-items: center; justify-content: center; background: rgba(4, 5, 8, 0.72); pointer-events: auto; padding: 12px; }
+  #sheet.show { display: flex; }
+  .sheet-card { display: grid; grid-template-columns: minmax(180px, 280px) 1fr; width: min(860px, 100%); max-height: min(88vh, 740px); background: #101318; border: 1px solid rgba(214, 196, 150, 0.42); border-radius: 16px; overflow: auto; box-shadow: 0 24px 80px rgba(0,0,0,0.55); position: relative; }
+  .sheet-card img { width: 100%; height: 100%; object-fit: cover; min-height: 280px; }
+  .sheet-body { padding: 18px 18px 16px; }
+  .sheet-body h2 { margin: 0; letter-spacing: 0.14em; text-transform: uppercase; font-weight: 600; }
+  .sheet-body .role { margin: 4px 0 12px; color: #c9c0ae; font-size: 14px; }
+  #sheet-close { position: absolute; top: 10px; right: 10px; z-index: 2; border: 1px solid rgba(214,196,150,0.4); background: rgba(12,14,18,0.85); color: #efe7d6; border-radius: 999px; padding: 6px 12px; font: inherit; }
+  table.stats { width: 100%; border-collapse: collapse; font-size: 14px; }
+  table.stats th { text-align: left; font-weight: 500; color: #b7b0a2; font-size: 11px; letter-spacing: 0.08em; text-transform: uppercase; padding: 4px 0; }
+  table.stats td { padding: 5px 0; border-top: 1px solid rgba(255,255,255,0.06); }
+  .up { color: #8fd6b0; }
+  .down { color: #e07a72; }
+  .same { color: #9a9386; }
+  #sheet-notes { margin: 12px 0 0; padding-left: 16px; color: #c9c0ae; font-size: 13px; }
+  #sheet-notes li { margin: 4px 0; }
+  #loot { position: fixed; inset: 0; z-index: 6; display: none; align-items: center; justify-content: center; background: rgba(4,5,8,0.72); pointer-events: auto; padding: 12px; }
+  #loot.show { display: flex; }
+  .loot-card { width: min(760px, 100%); max-height: min(86vh, 680px); overflow: auto; background: #101318; border: 1px solid rgba(214,196,150,0.42); border-radius: 16px; padding: 16px; }
+  .loot-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(160px, 1fr)); gap: 10px; }
+  .item { border: 1px solid rgba(214,196,150,0.28); border-radius: 10px; padding: 8px; background: #171b22; color: inherit; font: inherit; text-align: left; }
+  .item img { width: 100%; height: 92px; object-fit: contain; background: #0c0e12; border-radius: 6px; }
+  .item b { display: block; margin-top: 6px; }
+  .item span { color: #b7b0a2; font-size: 12px; }
+  @media (max-width: 700px) {
+    .sheet-card { grid-template-columns: 1fr; }
+    .sheet-card img { height: 210px; min-height: 0; }
+  }
+</style>
+</head>
+<body>
+<canvas id="view"></canvas>
+<div id="hud">
+  <div id="quest" class="panel">
+    <h1>Ashen Court</h1>
+    <p id="questline">Light the three witchfire braziers, then pass the skull arch.</p>
+    <div id="rigread">rig idle</div>
+    <div id="party"></div>
+  </div>
+  <div id="modes">
+    <button id="mode-auto" class="active">Auto</button>
+    <button id="mode-pc">PC</button>
+    <button id="mode-mobile">Mobile</button>
+    <button id="open-sheet">Sheet</button>
+    <button id="open-bag">Bag</button>
+  </div>
+  <div id="hint">WASD move · click an elf for their sheet · Space strike · Shift dash · E light · Tab swap · C sheet · R rig · M mute</div>
+  <canvas id="minimap" width="160" height="112"></canvas>
+</div>
+<div id="touch">
+  <div id="stick"><div id="knob"></div></div>
+  <div class="actions">
+    <button id="btn-switch">Swap</button>
+    <button id="btn-sheet">Sheet</button>
+    <button id="btn-interact">Light</button>
+    <button id="btn-dash">Dash</button>
+    <button id="btn-attack">Strike</button>
+  </div>
+</div>
+<div id="loot">
+  <div class="loot-card">
+    <button id="loot-close">Close</button>
+    <h2 id="loot-title">Chest</h2>
+    <p id="loot-sub" class="role"></p>
+    <div id="loot-grid" class="loot-grid"></div>
+  </div>
+</div>
+<div id="sheet">
+  <div class="sheet-card">
+    <button id="sheet-close">Close</button>
+    <img id="sheet-art" alt="Selected elf" />
+    <div class="sheet-body">
+      <h2 id="sheet-name">Elf</h2>
+      <p class="role" id="sheet-role"></p>
+      <div class="bar hp" title="Health"><i id="sheet-hp"></i></div>
+      <div class="pmeta" id="sheet-hp-label"></div>
+      <div class="bar fp" title="Focus"><i id="sheet-fp"></i></div>
+      <div class="pmeta" id="sheet-fp-label"></div>
+      <table class="stats">
+        <thead><tr><th>Stat</th><th>Normal</th><th>Current</th><th></th></tr></thead>
+        <tbody id="sheet-rows"></tbody>
+      </table>
+      <ul id="sheet-notes"></ul>
+    </div>
+  </div>
+</div>
+<div id="toast"></div>
+<div id="boot">
+  <div class="card">
+    <h1>Ashen Court</h1>
+    <p>Vaelor and Sereth walk the court. Maelveth, the exiled dark elf, is rigged and waiting. He will not draw until you ask him to fight.</p>
+    <p id="bootstatus">Keying sprites and stamping the court…</p>
+    <button id="enter" type="button">Start</button>
+    <button id="how">How to play</button>
+  </div>
+</div>
+<div id="pause">
+  <div class="card">
+    <h1>Paused</h1>
+    <p>The court holds. Maelveth keeps his blade until you resume.</p>
+    <button id="resume">Resume</button>
+    <button id="to-title">Title</button>
+  </div>
+</div>
+<script>
+const canvas = document.getElementById('view');
+const ctx = canvas.getContext('2d');
+const mini = document.getElementById('minimap');
+const mctx = mini.getContext('2d');
+const WORLD = { w: 3600, h: 2500 };
+const keys = new Set();
+const input = { x: 0, y: 0, aimX: 0, aimY: 0, attack: false, dash: false, interact: false, swap: false, inspect: false };
+let layout = 'auto';
+let showRig = true;
+let muted = false;
+let cam = { x: 0, y: 0 };
+let started = false;
+let paused = false;
+let ready = false;
+let wantStart = false;
+let sheetOpen = false;
+let sheetMode = 'elf';
+let selected = null;
+let last = performance.now();
+let toastTimer = 0;
+const ashes = [];
+const bolts = [];
+const sparks = [];
+
+const files = {
+  stone: 'assets/stone.jpg', mud: 'assets/mud.jpg', backdrop: 'assets/backdrop.jpg',
+  tree: 'assets/tree.jpg', arch: 'assets/arch.jpg', brazier: 'assets/brazier.jpg',
+  statue: 'assets/statue.jpg', graves: 'assets/graves.jpg', lantern: 'assets/lantern.jpg',
+  warrior: 'assets/warrior.jpg', mage: 'assets/mage.jpg', maelveth: 'assets/maelveth.jpg',
+  vaelorSplash: 'assets/vaelor-splash.jpg', serethSplash: 'assets/sereth-splash.jpg', maelvethSplash: 'assets/maelveth-splash.jpg',
+  swordCourt: 'assets/sword-court.jpg', swordWitch: 'assets/sword-witch.jpg', swordThorn: 'assets/sword-thorn.jpg',
+  bowYew: 'assets/bow-yew.jpg', bowBone: 'assets/bow-bone.jpg', bowWitch: 'assets/bow-witch.jpg',
+  splashCourt: 'assets/splash-court.jpg', splashWitch: 'assets/splash-witch.jpg', splashThorn: 'assets/splash-thorn.jpg',
+  splashYew: 'assets/splash-yew.jpg', splashBonebow: 'assets/splash-bonebow.jpg', splashWitchbow: 'assets/splash-witchbow.jpg',
+  arrows: 'assets/arrows.jpg', chestIron: 'assets/chest-iron.jpg', chestBone: 'assets/chest-bone.jpg', chestOpen: 'assets/chest-open.jpg'
+};
+const art = {};
+const noKey = new Set(['stone', 'mud', 'backdrop', 'vaelorSplash', 'serethSplash', 'maelvethSplash', 'splashCourt', 'splashWitch', 'splashThorn', 'splashYew', 'splashBonebow', 'splashWitchbow']);
+
+function loadImage(src) {
+  return new Promise((res, rej) => {
+    const img = new Image();
+    img.onload = () => res(img);
+    img.onerror = rej;
+    img.src = src;
+  });
+}
+function keyMagenta(img) {
+  const c = document.createElement('canvas');
+  c.width = img.width; c.height = img.height;
+  const g = c.getContext('2d');
+  g.drawImage(img, 0, 0);
+  const image = g.getImageData(0, 0, c.width, c.height);
+  const d = image.data;
+  for (let i = 0; i < d.length; i += 4) {
+    const r = d[i], gv = d[i + 1], b = d[i + 2];
+    const mag = r > 150 && b > 150 && gv < 150 && (r + b) > gv * 2.3 && Math.abs(r - b) < 110;
+    if (!mag) continue;
+    const strength = Math.min(1, ((r + b) * 0.5 - gv - 30) / 70);
+    d[i + 3] = Math.round(d[i + 3] * (1 - strength));
+    d[i] = Math.min(r, gv + 50);
+    d[i + 2] = Math.min(b, gv + 50);
+  }
+  g.putImageData(image, 0, 0);
+  return c;
+}
+
+function stampGround() {
+  const c = document.createElement('canvas');
+  c.width = WORLD.w; c.height = WORLD.h;
+  const g = c.getContext('2d');
+  g.drawImage(art.backdrop, 0, 0, WORLD.w, 980);
+  const fade = g.createLinearGradient(0, 520, 0, 980);
+  fade.addColorStop(0, 'rgba(0,0,0,0)');
+  fade.addColorStop(1, 'rgba(0,0,0,1)');
+  g.fillStyle = fade;
+  g.fillRect(0, 520, WORLD.w, 460);
+  const mud = art.mud, stone = art.stone;
+  g.save();
+  g.beginPath();
+  g.rect(0, 700, WORLD.w, WORLD.h);
+  g.clip();
+  for (let y = 640; y < WORLD.h; y += 360) {
+    for (let x = 0; x < WORLD.w; x += 480) g.drawImage(mud, x, y, 500, 380);
+  }
+  g.restore();
+  g.globalAlpha = 0.92;
+  const path = [
+    [1800, 2100, 520, 280], [1500, 1700, 380, 220], [2100, 1680, 360, 200],
+    [1800, 1280, 640, 240], [1100, 1280, 300, 180], [2500, 1240, 280, 180],
+    [1800, 860, 460, 220], [1800, 620, 280, 140]
+  ];
+  for (const [x, y, w, h] of path) {
+    g.save();
+    g.beginPath();
+    g.ellipse(x, y, w, h, 0, 0, Math.PI * 2);
+    g.clip();
+    for (let yy = y - h; yy < y + h; yy += 300) {
+      for (let xx = x - w; xx < x + w; xx += 400) g.drawImage(stone, xx, yy, 420, 300);
+    }
+    g.restore();
+  }
+  g.globalAlpha = 1;
+  const vg = g.createRadialGradient(WORLD.w / 2, WORLD.h / 2, 500, WORLD.w / 2, WORLD.h / 2, 1700);
+  vg.addColorStop(0, 'rgba(0,0,0,0)');
+  vg.addColorStop(1, 'rgba(0,0,0,0.38)');
+  g.fillStyle = vg;
+  g.fillRect(0, 700, WORLD.w, WORLD.h - 700);
+  return c;
+}
+
+const props = [];
+function addProp(kind, x, y, scale, radius) {
+  props.push({ kind, x, y, scale, radius, lit: false });
+}
+function buildProps() {
+  const trees = [[280, 420], [620, 860], [340, 1500], [520, 2140], [3080, 480], [3320, 980], [3180, 1680], [3000, 2200], [980, 360], [2500, 340], [1400, 2300], [2300, 2280]];
+  trees.forEach(([x, y], i) => addProp('tree', x, y, 0.55 + (i % 3) * 0.08, 46));
+  addProp('arch', 1800, 430, 0.72, 70);
+  addProp('brazier', 980, 1560, 0.42, 36);
+  addProp('brazier', 2620, 1500, 0.42, 36);
+  addProp('brazier', 1800, 980, 0.46, 38);
+  addProp('statue', 1280, 1180, 0.42, 34);
+  addProp('statue', 2320, 1120, 0.4, 34);
+  addProp('graves', 760, 1880, 0.48, 50);
+  addProp('graves', 2860, 1860, 0.44, 48);
+  addProp('lantern', 1460, 1760, 0.38, 22);
+  addProp('lantern', 2140, 1760, 0.38, 22);
+  addProp('lantern', 1520, 860, 0.36, 22);
+  addProp('lantern', 2100, 820, 0.36, 22);
+  addChest(1180, 1960, 'chestIron', ['court', 'arrowBone']);
+  addChest(2480, 1680, 'chestBone', ['yew', 'arrowSilver', 'thorn']);
+  addChest(1680, 760, 'chestIron', ['saber', 'witchbow', 'arrowWitch']);
+}
+function addChest(x, y, skin, loot) {
+  props.push({ kind: 'chest', x, y, scale: 0.42, radius: 30, skin, loot, open: false });
+}
+
+const WEAPONS = {
+  court: { name: 'Court Blade', type: 'sword', sprite: 'swordCourt', splash: 'splashCourt', might: 4, guard: 1, haste: -1, crit: 2, will: 0, note: 'Skull-pommel saber of the night court.' },
+  saber: { name: 'Witchfire Saber', type: 'sword', sprite: 'swordWitch', splash: 'splashWitch', might: 3, guard: 0, haste: 1, crit: 3, will: 3, note: 'The edge drinks green fire.' },
+  thorn: { name: 'Grave Thorn', type: 'sword', sprite: 'swordThorn', splash: 'splashThorn', might: 5, guard: 2, haste: -2, crit: 1, will: 0, note: 'Heavy, moss-bitten, hard to turn.' },
+  yew: { name: 'Yew Longbow', type: 'bow', sprite: 'bowYew', splash: 'splashYew', might: 2, guard: 0, haste: 2, crit: 4, will: 1, note: 'Dead yew, silver string, long reach.' },
+  bonebow: { name: 'Bone Recurve', type: 'bow', sprite: 'bowBone', splash: 'splashBonebow', might: 3, guard: 1, haste: 0, crit: 2, will: 1, note: 'Ivory ribs and black sinew.' },
+  witchbow: { name: 'Witchfire Bow', type: 'bow', sprite: 'bowWitch', splash: 'splashWitchbow', might: 1, guard: 0, haste: 1, crit: 3, will: 4, note: 'The string is a line of pale fire.' },
+  arrowBone: { name: 'Bone Arrow', type: 'arrow', sprite: 'arrow0', splash: 'splashThorn', might: 1, guard: 0, haste: 0, crit: 0, will: 0, note: 'A marrow tip for close graves.' },
+  arrowSilver: { name: 'Silver Arrow', type: 'arrow', sprite: 'arrow1', splash: 'splashYew', might: 0, guard: 0, haste: 0, crit: 2, will: 0, note: 'Court silver, keen on the turn.' },
+  arrowWitch: { name: 'Witchfire Arrow', type: 'arrow', sprite: 'arrow2', splash: 'splashWitchbow', might: 0, guard: 0, haste: 0, crit: 1, will: 2, note: 'The head burns after it leaves the string.' }
+};
+function weaponById(id) { return WEAPONS[id] || null; }
+
+class Elf {
+  constructor(opts) {
+    Object.assign(this, opts);
+    this.vx = 0; this.vy = 0; this.facing = 1; this.phase = 0;
+    this.attackT = 0; this.dashT = 0; this.dashCd = 0; this.busy = 0;
+    this.bones = { hip: 0, chest: 0, head: 0, lArm: 0.3, rArm: -0.3, lLeg: 0.2, rLeg: -0.2, lean: 0 };
+  }
+  speed() { return Math.hypot(this.vx, this.vy); }
+  updateRig(dt, moving) {
+    const spd = this.speed();
+    if (moving) this.phase += dt * (7.5 + spd * 0.012);
+    const s = Math.sin(this.phase);
+    const c = Math.cos(this.phase);
+    const amp = moving ? 1 : 0.08;
+    this.bones.lLeg = s * 0.7 * amp;
+    this.bones.rLeg = -s * 0.7 * amp;
+    this.bones.lArm = -s * 0.55 * amp + (this.kind === 'mage' ? -0.4 : 0.15);
+    this.bones.rArm = s * 0.55 * amp + (this.attackT > 0 ? -1.4 : -0.1);
+    this.bones.hip = Math.abs(s) * -6 * amp;
+    this.bones.chest = c * 0.04 * amp;
+    this.bones.head = -this.bones.chest * 0.6;
+    this.bones.lean = Math.max(-0.18, Math.min(0.18, this.vx * 0.0014));
+    if (this.attackT > 0) this.bones.rArm = -1.2 + Math.sin((1 - this.attackT) * Math.PI) * 1.6;
+  }
+}
+
+let player, companion, controlled;
+const elves = [];
+
+function spawnElves() {
+  player = new Elf({
+    name: 'Vaelor', kind: 'warrior', title: 'Blade of the Court', x: 1800, y: 2060, color: '#d6c496',
+    sprite: art.warrior, splash: art.vaelorSplash,
+    hp: 108,
+    focus: 40,
+    base: { maxHp: 124, maxFocus: 48, might: 16, guard: 13, haste: 12, will: 7, crit: 9 },
+    mods: { might: 2, haste: -1 },
+    notes: ['Oath of blades: Might +2.', 'Ash fatigue: Haste −1.', 'March wound: Health below normal.']
+  });
+  player.bag = []; player.weapon = null; player.arrow = null;
+  companion = new Elf({
+    name: 'Sereth', kind: 'mage', title: 'Witchfire Cantor', x: 1680, y: 2140, color: '#8fd6b0',
+    sprite: art.mage, splash: art.serethSplash,
+    hp: 92,
+    focus: 71,
+    base: { maxHp: 92, maxFocus: 96, might: 8, guard: 7, haste: 10, will: 16, crit: 12 },
+    mods: { will: 2, guard: -1 },
+    notes: ['Staff attunement: Will +2.', 'Tattered vestments: Guard −1.', 'Rite already spent: Focus below normal.']
+  });
+  companion.bag = []; companion.weapon = null; companion.arrow = null;
+  elves.splice(0, elves.length, player, companion);
+  controlled = player;
+  selected = player;
+  spawnFoe();
+}
+
+function tintFoe(img) {
+  const c = document.createElement('canvas');
+  c.width = img.width; c.height = img.height;
+  const g = c.getContext('2d');
+  g.drawImage(img, 0, 0);
+  const im = g.getImageData(0, 0, c.width, c.height);
+  const d = im.data;
+  for (let i = 0; i < d.length; i += 4) {
+    if (d[i + 3] < 12) continue;
+    d[i] = Math.min(255, d[i] * 0.46 + 16);
+    d[i + 1] = Math.min(255, d[i + 1] * 0.5 + 14);
+    d[i + 2] = Math.min(255, d[i + 2] * 0.64 + 24);
+  }
+  g.putImageData(im, 0, 0);
+  return c;
+}
+
+let foe = null;
+function spawnFoe() {
+  foe = new Elf({
+    name: 'Maelveth', kind: 'foe', title: 'Exiled Duelist', x: 1800, y: 1280, color: '#e0a0a0',
+    sprite: art.maelveth, splash: art.maelvethSplash,
+    hp: 146, focus: 60,
+    base: { maxHp: 146, maxFocus: 60, might: 15, guard: 11, haste: 13, will: 8, crit: 10 },
+    mods: { might: 3, haste: 1 },
+    notes: ['Exile of the night court.', 'Same bone rig as Vaelor and Sereth.', 'Will not draw until you ask him to fight.']
+  });
+  foe.bag = ['thorn'];
+  foe.weapon = 'thorn';
+  foe.arrow = null;
+  foe.hostile = false;
+}
+
+function blessing() { return litCount(); }
+
+function sheetStats(e) {
+  const bless = blessing();
+  const mods = Object.assign({}, e.mods);
+  mods.will = (mods.will || 0) + bless;
+  mods.guard = (mods.guard || 0) + Math.floor(bless / 2);
+  mods.maxHp = (mods.maxHp || 0) + bless * 4;
+  mods.maxFocus = (mods.maxFocus || 0) + bless * 2;
+  for (const id of [e.weapon, e.arrow]) {
+    const w = weaponById(id);
+    if (!w) continue;
+    mods.might = (mods.might || 0) + w.might;
+    mods.guard = (mods.guard || 0) + w.guard;
+    mods.haste = (mods.haste || 0) + w.haste;
+    mods.will = (mods.will || 0) + w.will;
+    mods.crit = (mods.crit || 0) + w.crit;
+  }
+  const cur = {};
+  for (const k of ['might', 'guard', 'haste', 'will', 'crit', 'maxHp', 'maxFocus']) {
+    cur[k] = e.base[k] + (mods[k] || 0);
+  }
+  return cur;
+}
+
+function spendFocus(e, n) {
+  e.focus = Math.max(0, e.focus - n);
+}
+
+function heal(e, n) {
+  const s = sheetStats(e);
+  e.hp = Math.min(s.maxHp, e.hp + n);
+}
+
+function collide(nx, ny, self) {
+  if (nx < 70 || ny < 80 || nx > WORLD.w - 70 || ny > WORLD.h - 70) return false;
+  for (const p of props) {
+    if (p.kind === 'lantern') continue;
+    const rr = (p.radius + 18) * (p.kind === 'arch' ? 0.55 : 1);
+    const dx = nx - p.x, dy = ny - (p.y - 10);
+    if (dx * dx + dy * dy < rr * rr) return false;
+  }
+  for (const e of elves.concat(foe && foe.hp > 0 ? [foe] : [])) {
+    if (e === self) continue;
+    const dx = nx - e.x, dy = ny - e.y;
+    if (dx * dx + dy * dy < 36 * 36) return false;
+  }
+  return true;
+}
+
+function tryMove(e, dt) {
+  const step = 1;
+  let left = Math.hypot(e.vx, e.vy) * dt;
+  if (left < 0.01) return;
+  const ang = Math.atan2(e.vy, e.vx);
+  while (left > 0) {
+    const d = Math.min(step, left);
+    const nx = e.x + Math.cos(ang) * d;
+    const ny = e.y + Math.sin(ang) * d;
+    if (collide(nx, ny, e)) { e.x = nx; e.y = ny; }
+    else {
+      if (collide(e.x + Math.cos(ang) * d, e.y, e)) e.x += Math.cos(ang) * d;
+      else if (collide(e.x, e.y + Math.sin(ang) * d, e)) e.y += Math.sin(ang) * d;
+      break;
+    }
+    left -= d;
+  }
+}
+
+function strike(e) {
+  if (e.attackT > 0 || e.busy > 0) return;
+  const wpn = weaponById(e.weapon);
+  const cost = wpn && wpn.type === 'bow' ? 8 : (e.kind === 'mage' ? 10 : 6);
+  if (e.focus < cost) { say(e.name + ' is out of focus.'); return; }
+  spendFocus(e, cost);
+  e.fired = false;
+  e.attackT = wpn && wpn.type === 'bow' ? 0.56 : 0.44;
+  e.busy = e.attackT;
+  tone(wpn && wpn.type === 'bow' ? 240 : 160, 0.09, 'sawtooth', 0.04);
+  if (!wpn || wpn.type === 'sword') {
+    const reach = 54 + (wpn ? wpn.might * 4 : 8);
+    sparks.push({ x: e.x + e.facing * 40, y: e.y - 36, life: 0.22, r: reach * 0.45, slash: true });
+    hitShades(e.x + e.facing * 46, e.y - 20, reach, 8 + sheetStats(e).might);
+    hitActors(e, e.x + e.facing * 46, e.y - 20, reach, 8 + sheetStats(e).might);
+  }
+}
+
+function hitActors(attacker, x, y, r, dmg) {
+  const targets = attacker === foe ? [controlled] : (foe ? [foe] : []);
+  for (const t of targets) {
+    if (!t || t.hp <= 0) continue;
+    if (t === foe && !foe.hostile) continue;
+    if (Math.hypot(t.x - x, t.y - y) > r) continue;
+    const dealt = Math.max(1, dmg - sheetStats(t).guard * 0.35);
+    t.hp = Math.max(0, t.hp - dealt);
+    sparks.push({ x: t.x, y: t.y - 40, life: 0.2, r: 14 });
+    if (t.hp <= 0) say(t.name + ' falls.');
+  }
+}
+
+function updateFoe(dt) {
+  if (!foe || foe.hp <= 0) return;
+  if (foe.attackT > 0) foe.attackT -= dt;
+  if (foe.busy > 0) foe.busy -= dt;
+  if (!foe.hostile) {
+    foe.vx *= 0.8; foe.vy *= 0.8;
+    tryMove(foe, dt);
+    foe.updateRig(dt, false);
+    return;
+  }
+  const dx = controlled.x - foe.x, dy = controlled.y - foe.y;
+  const dist = Math.hypot(dx, dy) || 1;
+  if (dist > 54) {
+    foe.vx = dx / dist * 170;
+    foe.vy = dy / dist * 170;
+    foe.facing = foe.vx >= 0 ? 1 : -1;
+  } else {
+    foe.vx *= 0.5; foe.vy *= 0.5;
+    foe.facing = dx >= 0 ? 1 : -1;
+    if (foe.attackT <= 0) strike(foe);
+  }
+  tryMove(foe, dt);
+  foe.updateRig(dt, foe.speed() > 18);
+  if (foe.focus < sheetStats(foe).maxFocus) foe.focus = Math.min(sheetStats(foe).maxFocus, foe.focus + dt * 4);
+}
+function challengeFoe() {
+  if (!foe || foe.hp <= 0) { say('Maelveth is already down.'); return; }
+  if (foe.hostile) { say('The duel is already joined.'); return; }
+  foe.hostile = true;
+  say('You ask Maelveth to fight. He accepts.');
+  tone(140, 0.16, 'sawtooth', 0.05);
+}
+
+function fireArrow(e) {
+  const ang = Math.atan2(input.aimY - e.y, input.aimX - e.x);
+  const power = 420 + sheetStats(e).might * 10 + sheetStats(e).will * 4;
+  const arrow = weaponById(e.arrow);
+  bolts.push({
+    x: e.x + Math.cos(ang) * 28, y: e.y - 48 + Math.sin(ang) * 10,
+    vx: Math.cos(ang) * power, vy: Math.sin(ang) * power,
+    life: 1.1, sprite: arrow ? art[arrow.sprite] : art.arrow1, ang, dmg: 7 + sheetStats(e).might
+  });
+}
+
+const shades = [
+  { x: 1260, y: 1540, hp: 42, max: 42 },
+  { x: 2360, y: 1460, hp: 42, max: 42 },
+  { x: 1820, y: 1120, hp: 56, max: 56 }
+];
+function hitShades(x, y, r, dmg) {
+  for (const s of shades) {
+    if (s.hp <= 0) continue;
+    if (Math.hypot(s.x - x, s.y - y) < r) {
+      s.hp -= dmg;
+      sparks.push({ x: s.x, y: s.y - 20, life: 0.25, r: 16 });
+      if (s.hp <= 0) say('A court shade unravels.');
+    }
+  }
+}
+
+function dash(e) {
+  if (e.dashCd > 0) return;
+  if (e.focus < 8) { say(e.name + ' cannot dash without focus.'); return; }
+  spendFocus(e, 8);
+  const mag = Math.hypot(input.x, input.y) || 1;
+  const haste = sheetStats(e).haste;
+  e.vx = (input.x || e.facing) / mag * (560 + haste * 8);
+  e.vy = input.y / mag * (560 + haste * 8);
+  e.dashT = 0.16;
+  e.dashCd = 0.7;
+  tone(90, 0.1, 'square', 0.03);
+}
+
+function nearestBrazier(e) {
+  let best = null, bd = 78;
+  for (const p of props) {
+    if (p.kind !== 'brazier' || p.lit) continue;
+    const d = Math.hypot(p.x - e.x, p.y - e.y);
+    if (d < bd) { bd = d; best = p; }
+  }
+  return best;
+}
+
+function litCount() { return props.filter(p => p.kind === 'brazier' && p.lit).length; }
+
+function update(dt) {
+  if (paused) return;
+  if (sheetOpen || lootOpen) { refreshParty(); if (sheetOpen && sheetMode === 'elf') paintSheet(); return; }
+  const e = controlled;
+  const other = e === player ? companion : player;
+  const accel = 1400;
+  let ix = input.x, iy = input.y;
+  if (keys.has('KeyW') || keys.has('ArrowUp')) iy -= 1;
+  if (keys.has('KeyS') || keys.has('ArrowDown')) iy += 1;
+  if (keys.has('KeyA') || keys.has('ArrowLeft')) ix -= 1;
+  if (keys.has('KeyD') || keys.has('ArrowRight')) ix += 1;
+  const mag = Math.hypot(ix, iy);
+  if (mag > 1) { ix /= mag; iy /= mag; }
+  if (e.dashT <= 0) {
+    e.vx += ix * accel * dt;
+    e.vy += iy * accel * dt;
+    const drag = Math.pow(0.04, dt);
+    e.vx *= drag; e.vy *= drag;
+    const max = 210;
+    const sp = e.speed();
+    if (sp > max) { e.vx *= max / sp; e.vy *= max / sp; }
+  } else e.dashT -= dt;
+  if (e.dashCd > 0) e.dashCd -= dt;
+  if (e.attackT > 0) {
+    const wpn = weaponById(e.weapon);
+    if (wpn && wpn.type === 'bow' && !e.fired && e.attackT < 0.3) { fireArrow(e); e.fired = true; }
+    e.attackT -= dt;
+  }
+  if (e.busy > 0) e.busy -= dt;
+  if (Math.abs(e.vx) > 8) e.facing = e.vx > 0 ? 1 : -1;
+  tryMove(e, dt);
+  e.updateRig(dt, e.speed() > 18);
+
+  const dx = e.x - other.x, dy = e.y - 46 - other.y;
+  const dist = Math.hypot(dx, dy);
+  if (dist > 78) {
+    other.vx = dx / dist * 150;
+    other.vy = dy / dist * 150;
+    other.facing = other.vx >= 0 ? 1 : -1;
+  } else { other.vx *= 0.8; other.vy *= 0.8; }
+  tryMove(other, dt);
+  other.updateRig(dt, other.speed() > 18);
+  updateFoe(dt);
+
+  if (input.attack) { strike(e); input.attack = false; }
+  if (input.dash) { dash(e); input.dash = false; }
+  if (input.swap) {
+    controlled = other;
+    selected = controlled;
+    input.swap = false;
+    openSheet(controlled);
+    say('Now walking ' + controlled.name);
+  }
+  if (input.interact) {
+    const chest = nearestChest(e);
+    const b = nearestBrazier(e);
+    if (chest) openLoot(chest);
+    else if (foe && foe.hp > 0 && Math.hypot(foe.x - e.x, foe.y - e.y) < 90) challengeFoe();
+    else if (b) {
+      b.lit = true;
+      heal(e, 16);
+      heal(other, 10);
+      say('Witchfire takes the brazier. Will rises. ' + litCount() + ' / 3');
+      tone(520, 0.18, 'triangle', 0.05);
+    } else if (litCount() === 3 && Math.hypot(e.x - 1800, e.y - 520) < 120) {
+      say('The skull arch opens. The court remembers your names.');
+    } else say('Nothing here will take the flame.');
+    input.interact = false;
+  }
+  for (const elf of elves) {
+    const maxF = sheetStats(elf).maxFocus;
+    if (elf.focus < maxF) elf.focus = Math.min(maxF, elf.focus + dt * 3);
+    for (const g of props) {
+      if (g.kind === 'graves' && Math.hypot(elf.x - g.x, elf.y - g.y) < 92) {
+        elf.hp = Math.max(1, elf.hp - dt * 5);
+      }
+    }
+  }
+  if (input.inspect) {
+    openSheet(selected || controlled);
+    input.inspect = false;
+  }
+
+  for (const b of bolts) {
+    b.x += b.vx * dt; b.y += b.vy * dt; b.life -= dt;
+    if (!b.spent) {
+      for (const s of shades) {
+        if (s.hp > 0 && Math.hypot(s.x - b.x, s.y - b.y) < 28) {
+          b.spent = true;
+          hitShades(b.x, b.y, 28, b.dmg || 6);
+          hitActors(controlled, b.x, b.y, 28, b.dmg || 6);
+          b.life = 0.05;
+        }
+      }
+    }
+    sparks.push({ x: b.x, y: b.y, life: 0.12, r: 5 });
+  }
+  for (let i = bolts.length - 1; i >= 0; i--) if (bolts[i].life <= 0) bolts.splice(i, 1);
+  for (let i = sparks.length - 1; i >= 0; i--) {
+    sparks[i].life -= dt;
+    if (sparks[i].life <= 0) sparks.splice(i, 1);
+  }
+  if (ashes.length < 80) ashes.push({ x: Math.random() * WORLD.w, y: Math.random() * WORLD.h, s: 0.4 + Math.random(), v: 12 + Math.random() * 20 });
+  for (const a of ashes) {
+    a.y -= a.v * dt; a.x += Math.sin(a.y * 0.01) * 8 * dt;
+    if (a.y < 0) a.y = WORLD.h;
+  }
+
+  const tx = e.x - canvas.width / 2, ty = e.y - canvas.height / 2 - 30;
+  cam.x += (tx - cam.x) * Math.min(1, dt * 4);
+  cam.y += (ty - cam.y) * Math.min(1, dt * 4);
+  cam.x = Math.max(0, Math.min(WORLD.w - canvas.width, cam.x));
+  cam.y = Math.max(0, Math.min(WORLD.h - canvas.height, cam.y));
+
+  const b = controlled.bones;
+  document.getElementById('rigread').textContent =
+    controlled.name + '  hip ' + b.hip.toFixed(1) +
+    '  Larm ' + b.lArm.toFixed(2) + '  Rarm ' + b.rArm.toFixed(2) +
+    '\nLleg ' + b.lLeg.toFixed(2) + '  Rleg ' + b.rLeg.toFixed(2) +
+    '  lean ' + b.lean.toFixed(2) + (showRig ? '  overlay on' : '  overlay off');
+  const n = litCount();
+  document.getElementById('questline').textContent = n < 3
+    ? 'Open the skull chests for blades and bows. Braziers lit: ' + n + ' / 3.'
+    : 'All three braziers burn. Reach the skull arch.';
+  refreshParty();
+  if (sheetOpen && sheetMode === 'elf') paintSheet();
+}
+
+function drawRig(e) {
+  const s = 46;
+  ctx.save();
+  ctx.translate(0, e.bones.hip);
+  ctx.rotate(e.bones.lean);
+  ctx.strokeStyle = 'rgba(214, 196, 150, 0.85)';
+  ctx.fillStyle = 'rgba(143, 214, 176, 0.9)';
+  ctx.lineWidth = 2;
+  const hip = { x: 0, y: -28 };
+  const chest = { x: Math.sin(e.bones.chest) * 6, y: -52 };
+  const head = { x: chest.x + Math.sin(e.bones.head) * 4, y: -70 };
+  const lHand = { x: -16 + Math.sin(e.bones.lArm) * 22, y: -40 + Math.cos(e.bones.lArm) * 18 };
+  const rHand = { x: 16 + Math.sin(e.bones.rArm) * 22, y: -40 + Math.cos(e.bones.rArm) * 18 };
+  const lFoot = { x: -8 + Math.sin(e.bones.lLeg) * 14, y: -4 };
+  const rFoot = { x: 8 + Math.sin(e.bones.rLeg) * 14, y: -4 };
+  ctx.beginPath();
+  ctx.moveTo(lFoot.x, lFoot.y); ctx.lineTo(hip.x, hip.y); ctx.lineTo(rFoot.x, rFoot.y);
+  ctx.moveTo(hip.x, hip.y); ctx.lineTo(chest.x, chest.y); ctx.lineTo(head.x, head.y);
+  ctx.moveTo(chest.x, chest.y); ctx.lineTo(lHand.x, lHand.y);
+  ctx.moveTo(chest.x, chest.y); ctx.lineTo(rHand.x, rHand.y);
+  ctx.stroke();
+  for (const p of [hip, chest, head, lHand, rHand, lFoot, rFoot]) {
+    ctx.beginPath(); ctx.arc(p.x, p.y, 3.2, 0, Math.PI * 2); ctx.fill();
+  }
+  ctx.restore();
+}
+
+function drawHeldWeapon(e) {
+  const wpn = weaponById(e.weapon);
+  if (!wpn || !art[wpn.sprite]) return;
+  const img = art[wpn.sprite];
+  const dur = wpn.type === 'bow' ? 0.56 : 0.44;
+  const t = e.attackT > 0 ? 1 - e.attackT / dur : 0;
+  ctx.save();
+  ctx.translate(e.x, e.y + e.bones.hip);
+  ctx.scale(e.facing, 1);
+  ctx.translate(22, -62);
+  if (wpn.type === 'sword') {
+    const ang = e.attackT > 0 ? -1.35 + t * 2.5 : 0.55;
+    ctx.rotate(ang);
+    ctx.drawImage(img, -10, -78, 30, 86);
+    if (e.attackT > 0) {
+      ctx.strokeStyle = 'rgba(214,196,150,0.55)';
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.arc(0, 8, 50, -0.6, 1.5);
+      ctx.stroke();
+    }
+  } else {
+    const pull = e.attackT > 0 ? Math.sin(Math.min(1, t * 1.4) * Math.PI) : 0;
+    ctx.rotate(-0.55);
+    ctx.drawImage(img, -12, -46, 30, 78);
+    ctx.strokeStyle = pull > 0.15 ? '#b6ff9a' : 'rgba(214,196,150,0.7)';
+    ctx.beginPath();
+    ctx.moveTo(6, -22);
+    ctx.lineTo(-8 - pull * 14, 0);
+    ctx.lineTo(6, 22);
+    ctx.stroke();
+  }
+  ctx.restore();
+}
+function nearestChest(e) {
+  let best = null, bd = 84;
+  for (const p of props) {
+    if (p.kind !== 'chest') continue;
+    const d = Math.hypot(p.x - e.x, p.y - e.y);
+    if (d < bd) { bd = d; best = p; }
+  }
+  return best;
+}
+let lootOpen = false;
+let lootChest = null;
+function signed(n) { return (n > 0 ? '+' : '') + n; }
+function itemButton(id, action) {
+  const w = weaponById(id);
+  return '<button class="item" data-id="' + id + '" data-act="' + action + '"><img alt=""><b>' + w.name + '</b><span>' +
+    w.type + ' · Might ' + signed(w.might) + ' · Guard ' + signed(w.guard) + ' · Haste ' + signed(w.haste) + ' · Will ' + signed(w.will) + ' · Crit ' + signed(w.crit) +
+    '<br>' + w.note + '</span></button>';
+}
+function paintLoot() {
+  const grid = document.getElementById('loot-grid');
+  const title = document.getElementById('loot-title');
+  const sub = document.getElementById('loot-sub');
+  if (lootChest) {
+    title.textContent = 'Chest';
+    sub.textContent = 'Take a weapon, then equip it from the bag.';
+    grid.innerHTML = lootChest.loot.length ? lootChest.loot.map(id => itemButton(id, 'take')).join('') : '<p>Empty.</p>';
+  } else {
+    const wpn = weaponById(controlled.weapon);
+    title.textContent = controlled.name + ' bag';
+    sub.textContent = 'Equipped: ' + (wpn ? wpn.name : 'bare hands') + (controlled.arrow ? ' · ' + weaponById(controlled.arrow).name : '');
+    grid.innerHTML = controlled.bag.length ? controlled.bag.map(id => itemButton(id, 'equip')).join('') : '<p>No weapons yet. Open a chest.</p>';
+  }
+  grid.querySelectorAll('button').forEach(btn => {
+    const id = btn.dataset.id;
+    const w = weaponById(id);
+    const img = btn.querySelector('img');
+    if (img && art[w.sprite] && art[w.sprite].toDataURL) img.src = art[w.sprite].toDataURL('image/png');
+    btn.onclick = () => {
+      if (btn.dataset.act === 'take') takeItem(id);
+      else equipItem(id);
+      showWeaponSplash(id);
+    };
+  });
+}
+function takeItem(id) {
+  if (!lootChest || lootChest.loot.indexOf(id) < 0) return;
+  lootChest.loot.splice(lootChest.loot.indexOf(id), 1);
+  lootChest.open = true;
+  controlled.bag.push(id);
+  say(controlled.name + ' takes the ' + weaponById(id).name + '.');
+  paintLoot();
+}
+function equipItem(id) {
+  const w = weaponById(id);
+  if (w.type === 'arrow') controlled.arrow = controlled.arrow === id ? null : id;
+  else controlled.weapon = controlled.weapon === id ? null : id;
+  say((controlled.weapon === id || controlled.arrow === id) ? 'Equipped ' + w.name : 'Unequipped ' + w.name);
+  paintLoot();
+}
+function openLoot(chest) {
+  lootChest = chest || null;
+  lootOpen = true;
+  document.getElementById('loot').classList.add('show');
+  paintLoot();
+}
+function closeLoot() {
+  lootOpen = false;
+  lootChest = null;
+  document.getElementById('loot').classList.remove('show');
+}
+function showWeaponSplash(id) {
+  const w = weaponById(id);
+  const file = {
+    splashCourt: 'splash-court.jpg', splashWitch: 'splash-witch.jpg', splashThorn: 'splash-thorn.jpg',
+    splashYew: 'splash-yew.jpg', splashBonebow: 'splash-bonebow.jpg', splashWitchbow: 'splash-witchbow.jpg'
+  }[w.splash];
+  document.getElementById('sheet-art').src = 'assets/' + file;
+  document.getElementById('sheet-name').textContent = w.name;
+  document.getElementById('sheet-role').textContent = w.type + ' · current bonus against bare hands';
+  document.getElementById('sheet-hp-label').textContent = w.note;
+  document.getElementById('sheet-fp-label').textContent = 'Normal is 0. Current is this weapon.';
+  document.getElementById('sheet-rows').innerHTML = ['might', 'guard', 'haste', 'will', 'crit'].map(k =>
+    '<tr><td>' + k + '</td><td>0</td><td>' + w[k] + '</td><td>' + delta(w[k], 0) + '</td></tr>'
+  ).join('');
+  document.getElementById('sheet-notes').innerHTML = '<li>' + w.note + '</li>';
+  document.getElementById('sheet').classList.add('show');
+  sheetOpen = true;
+  sheetMode = 'weapon';
+}
+
+function drawElf(e) {
+  const h = e.kind === 'mage' ? 168 : 158;
+  const w = h * (e.sprite.width / e.sprite.height);
+  ctx.save();
+  ctx.translate(e.x, e.y);
+  ctx.fillStyle = 'rgba(0,0,0,0.45)';
+  ctx.beginPath(); ctx.ellipse(0, -4, 22, 8, 0, 0, Math.PI * 2); ctx.fill();
+  ctx.translate(0, e.bones.hip);
+  ctx.rotate(e.bones.lean);
+  ctx.scale(e.facing, 1);
+  const squash = 1 + Math.sin(e.phase * 2) * (e.speed() > 18 ? 0.03 : 0);
+  ctx.drawImage(e.sprite, -w / 2, -h, w, h * squash);
+  if (e === controlled) {
+    ctx.strokeStyle = 'rgba(214,196,150,0.7)';
+    ctx.strokeRect(-w / 2 - 2, -h - 2, w + 4, 4);
+  }
+  ctx.restore();
+  drawHeldWeapon(e);
+  if (showRig) {
+    ctx.save();
+    ctx.translate(e.x, e.y);
+    ctx.scale(e.facing, 1);
+    drawRig(e);
+    ctx.restore();
+  }
+  ctx.fillStyle = e.color;
+  ctx.font = '13px Palatino, serif';
+  ctx.textAlign = 'center';
+  ctx.fillText(e.name, e.x, e.y - 186);
+  const s = sheetStats(e);
+  const bw = 54, bh = 6;
+  ctx.fillStyle = 'rgba(8,10,14,0.8)';
+  ctx.fillRect(e.x - bw / 2, e.y - 180, bw, bh);
+  ctx.fillStyle = e.hp / s.maxHp < 0.35 ? '#e07a72' : '#c44752';
+  ctx.fillRect(e.x - bw / 2, e.y - 180, bw * Math.max(0, e.hp / s.maxHp), bh);
+  ctx.fillStyle = 'rgba(8,10,14,0.8)';
+  ctx.fillRect(e.x - bw / 2, e.y - 172, bw, 4);
+  ctx.fillStyle = '#7ddec0';
+  ctx.fillRect(e.x - bw / 2, e.y - 172, bw * Math.max(0, e.focus / s.maxFocus), 4);
+  if (e === selected) {
+    ctx.strokeStyle = 'rgba(214,196,150,0.85)';
+    ctx.strokeRect(e.x - bw / 2 - 2, e.y - 182, bw + 4, 16);
+  }
+}
+
+function draw() {
+  const w = canvas.width, h = canvas.height;
+  ctx.clearRect(0, 0, w, h);
+  ctx.save();
+  ctx.translate(-cam.x, -cam.y);
+  ctx.drawImage(art.ground, 0, 0);
+  const drawables = props.map(p => ({ y: p.y, draw: () => drawProp(p) }))
+    .concat(elves.map(e => ({ y: e.y, draw: () => drawElf(e) })))
+    .concat(foe && foe.hp > 0 ? [{ y: foe.y, draw: () => drawElf(foe) }] : []);
+  drawables.sort((a, b) => a.y - b.y);
+  for (const d of drawables) d.draw();
+  for (const s of sparks) {
+    ctx.fillStyle = 'rgba(180, 255, 170,' + s.life * 3 + ')';
+    ctx.beginPath(); ctx.arc(s.x, s.y, s.r, 0, Math.PI * 2); ctx.fill();
+  }
+  for (const s of shades) {
+    if (s.hp <= 0) continue;
+    ctx.fillStyle = 'rgba(20, 24, 32, 0.85)';
+    ctx.beginPath(); ctx.ellipse(s.x, s.y - 28, 16, 34, 0, 0, Math.PI * 2); ctx.fill();
+    ctx.fillStyle = '#7ddec0';
+    ctx.fillRect(s.x - 16, s.y - 70, 32 * (s.hp / s.max), 4);
+  }
+  for (const b of bolts) {
+    ctx.save();
+    ctx.translate(b.x, b.y);
+    ctx.rotate(b.ang || 0);
+    if (b.sprite) ctx.drawImage(b.sprite, -22, -6, 44, 12);
+    else { ctx.fillStyle = '#b6ff9a'; ctx.fillRect(-8, -2, 16, 4); }
+    ctx.restore();
+  }
+  ctx.fillStyle = 'rgba(220,220,220,0.35)';
+  for (const a of ashes) ctx.fillRect(a.x, a.y, a.s, a.s);
+  const near = nearestBrazier(controlled);
+  const chest = nearestChest(controlled);
+  if (foe && foe.hp > 0 && Math.hypot(foe.x - controlled.x, foe.y - controlled.y) < 100 && !foe.hostile) {
+    ctx.fillStyle = '#efe7d6';
+    ctx.font = '15px Palatino, serif';
+    ctx.textAlign = 'center';
+    ctx.fillText(isMobile() ? 'Ask to fight' : 'E  ask to fight', foe.x, foe.y - 188);
+  }
+  if (chest) {
+    ctx.fillStyle = '#efe7d6';
+    ctx.font = '15px Palatino, serif';
+    ctx.textAlign = 'center';
+    ctx.fillText(isMobile() ? 'Open' : 'E  open chest', chest.x, chest.y - 90);
+  } else if (near) {
+    ctx.fillStyle = '#efe7d6';
+    ctx.font = '15px Palatino, serif';
+    ctx.textAlign = 'center';
+    ctx.fillText(isMobile() ? 'Light' : 'E  light', near.x, near.y - 150);
+  }
+  ctx.restore();
+  const vg = ctx.createRadialGradient(w / 2, h / 2, w * 0.2, w / 2, h / 2, w * 0.72);
+  vg.addColorStop(0, 'rgba(0,0,0,0)');
+  vg.addColorStop(1, 'rgba(0,0,0,0.55)');
+  ctx.fillStyle = vg;
+  ctx.fillRect(0, 0, w, h);
+  drawMini();
+}
+
+function drawProp(p) {
+  const img = p.kind === 'chest' ? (p.open ? art.chestOpen : art[p.skin]) : art[p.kind];
+  const h = (p.kind === 'tree' ? 340 : p.kind === 'arch' ? 390 : p.kind === 'chest' ? 150 : p.kind === 'graves' ? 220 : 200) * p.scale / 0.45;
+  const w = h * (img.width / img.height);
+  ctx.save();
+  ctx.translate(p.x, p.y);
+  ctx.fillStyle = 'rgba(0,0,0,0.4)';
+  ctx.beginPath(); ctx.ellipse(0, -2, w * 0.22, 10, 0, 0, Math.PI * 2); ctx.fill();
+  ctx.drawImage(img, -w / 2, -h, w, h);
+  if (p.kind === 'brazier' && p.lit) {
+    ctx.globalCompositeOperation = 'lighter';
+    const g = ctx.createRadialGradient(0, -h * 0.72, 4, 0, -h * 0.72, 90);
+    g.addColorStop(0, 'rgba(140,255,120,0.55)');
+    g.addColorStop(1, 'rgba(140,255,120,0)');
+    ctx.fillStyle = g;
+    ctx.beginPath(); ctx.arc(0, -h * 0.72, 90, 0, Math.PI * 2); ctx.fill();
+  }
+  if (p.kind === 'lantern') {
+    ctx.globalCompositeOperation = 'lighter';
+    ctx.fillStyle = 'rgba(120,170,255,0.18)';
+    ctx.beginPath(); ctx.arc(0, -h * 0.72, 46, 0, Math.PI * 2); ctx.fill();
+  }
+  ctx.restore();
+}
+
+function drawMini() {
+  mctx.clearRect(0, 0, 160, 112);
+  mctx.fillStyle = '#12151b';
+  mctx.fillRect(0, 0, 160, 112);
+  const sx = 160 / WORLD.w, sy = 112 / WORLD.h;
+  mctx.fillStyle = '#3d4654';
+  mctx.fillRect(70 * sx, 30 * sy, (WORLD.w - 140) * sx, (WORLD.h - 100) * sy);
+  for (const p of props) {
+    mctx.fillStyle = p.kind === 'brazier' ? (p.lit ? '#8dff7a' : '#c4553a') : '#8d929c';
+    mctx.fillRect(p.x * sx - 1.5, p.y * sy - 1.5, 3, 3);
+  }
+  for (const e of elves) {
+    mctx.fillStyle = e === controlled ? '#f0e2b8' : '#8fd6b0';
+    mctx.beginPath(); mctx.arc(e.x * sx, e.y * sy, 3, 0, Math.PI * 2); mctx.fill();
+  }
+}
+
+function resize() {
+  canvas.width = innerWidth; canvas.height = innerHeight;
+}
+function isMobile() {
+  if (layout === 'mobile') return true;
+  if (layout === 'pc') return false;
+  return matchMedia('(pointer: coarse)').matches || innerWidth < 860;
+}
+function applyLayout() {
+  const m = isMobile();
+  document.body.classList.toggle('mobile', m);
+  document.getElementById('touch').classList.toggle('show', m);
+  document.getElementById('mode-auto').classList.toggle('active', layout === 'auto');
+  document.getElementById('mode-pc').classList.toggle('active', layout === 'pc');
+  document.getElementById('mode-mobile').classList.toggle('active', layout === 'mobile');
+}
+function say(text) {
+  const t = document.getElementById('toast');
+  t.textContent = text; t.classList.add('on');
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => t.classList.remove('on'), 1600);
+}
+let actx;
+function tone(freq, dur, type, gain) {
+  if (muted) return;
+  try {
+    actx = actx || new (window.AudioContext || window.webkitAudioContext)();
+    const o = actx.createOscillator();
+    const g = actx.createGain();
+    o.type = type; o.frequency.value = freq;
+    g.gain.value = gain; g.gain.exponentialRampToValueAtTime(0.001, actx.currentTime + dur);
+    o.connect(g); g.connect(actx.destination); o.start(); o.stop(actx.currentTime + dur);
+  } catch (err) {}
+}
+
+function refreshParty() {
+  const box = document.getElementById('party');
+  box.innerHTML = elves.map(e => {
+    const s = sheetStats(e);
+    const on = e === controlled ? ' · walking' : '';
+    return '<div class="pframe" data-elf="' + e.name + '"><b>' + e.name + on + '</b>' +
+      '<div class="bar hp"><i style="width:' + Math.max(0, e.hp / s.maxHp * 100) + '%"></i></div>' +
+      '<div class="bar fp"><i style="width:' + Math.max(0, e.focus / s.maxFocus * 100) + '%"></i></div>' +
+      '<div class="pmeta">HP ' + Math.ceil(e.hp) + '/' + s.maxHp + ' · Focus ' + Math.ceil(e.focus) + '/' + s.maxFocus + '</div></div>';
+  }).join('');
+  box.querySelectorAll('.pframe').forEach(node => {
+    node.onclick = () => {
+      const elf = elves.find(x => x.name === node.dataset.elf);
+      selected = elf;
+      controlled = elf;
+      openSheet(elf);
+    };
+  });
+}
+
+function delta(cur, base) {
+  const d = cur - base;
+  if (d > 0) return '<span class="up">+' + d + '</span>';
+  if (d < 0) return '<span class="down">' + d + '</span>';
+  return '<span class="same">—</span>';
+}
+
+function paintSheet() {
+  const e = selected || controlled;
+  if (!e) return;
+  const s = sheetStats(e);
+  const src = e.kind === 'mage' ? 'assets/sereth-splash.jpg' : (e.kind === 'foe' ? 'assets/maelveth-splash.jpg' : 'assets/vaelor-splash.jpg');
+  const img = document.getElementById('sheet-art');
+  if (img.dataset.who !== e.name) { img.src = src; img.dataset.who = e.name; }
+  document.getElementById('sheet-name').textContent = e.name;
+  document.getElementById('sheet-role').textContent = e.title + ' · ' + (e === controlled ? 'selected' : 'in party');
+  document.getElementById('sheet-hp').style.width = Math.max(0, e.hp / s.maxHp * 100) + '%';
+  document.getElementById('sheet-fp').style.width = Math.max(0, e.focus / s.maxFocus * 100) + '%';
+  document.getElementById('sheet-hp-label').textContent = 'Health ' + Math.ceil(e.hp) + ' / ' + s.maxHp + '  (normal ' + e.base.maxHp + ')';
+  document.getElementById('sheet-fp-label').textContent = 'Focus ' + Math.ceil(e.focus) + ' / ' + s.maxFocus + '  (normal ' + e.base.maxFocus + ')';
+  const rows = [
+    ['Might', e.base.might, s.might],
+    ['Guard', e.base.guard, s.guard],
+    ['Haste', e.base.haste, s.haste],
+    ['Will', e.base.will, s.will],
+    ['Crit', e.base.crit, s.crit],
+    ['Health max', e.base.maxHp, s.maxHp],
+    ['Focus max', e.base.maxFocus, s.maxFocus]
+  ];
+  document.getElementById('sheet-rows').innerHTML = rows.map(([name, base, cur]) =>
+    '<tr><td>' + name + '</td><td>' + base + '</td><td>' + cur + '</td><td>' + delta(cur, base) + '</td></tr>'
+  ).join('');
+  const notes = e.notes.slice();
+  const bless = blessing();
+  if (bless) notes.push('Witchfire blessing ×' + bless + ': Will +' + bless + ', Guard +' + Math.floor(bless / 2) + ', Health max +' + bless * 4 + '.');
+  if (e.weapon) notes.push('Equipped ' + weaponById(e.weapon).name + '.');
+  if (e.arrow) notes.push('Nocked ' + weaponById(e.arrow).name + '.');
+  document.getElementById('sheet-notes').innerHTML = notes.map(n => '<li>' + n + '</li>').join('');
+}
+
+function openSheet(e) {
+  selected = e || controlled;
+  sheetOpen = true;
+  sheetMode = 'elf';
+  paintSheet();
+  document.getElementById('sheet').classList.add('show');
+}
+function closeSheet() {
+  sheetOpen = false;
+  document.getElementById('sheet').classList.remove('show');
+}
+
+function elfAt(wx, wy) {
+  const all = foe && foe.hp > 0 ? elves.concat([foe]) : elves;
+  for (const e of all) {
+    if (Math.abs(wx - e.x) < 40 && wy < e.y + 8 && wy > e.y - 170) return e;
+  }
+  return null;
+}
+function togglePause() {
+  if (!started) return;
+  paused = !paused;
+  document.getElementById('pause').classList.toggle('show', paused);
+}
+function showTitle() {
+  paused = false;
+  started = false;
+  document.getElementById('pause').classList.remove('show');
+  closeSheet();
+  closeLoot();
+  const boot = document.getElementById('boot');
+  boot.classList.remove('gone');
+  boot.style.display = 'flex';
+}
+function loop(now) {
+  const dt = Math.min(0.033, (now - last) / 1000);
+  last = now;
+  try {
+    if (started && !paused) { update(dt); draw(); }
+    else if (started) draw();
+  } catch (err) {
+    console.error(err);
+    say(String(err && err.message || err));
+  }
+  requestAnimationFrame(loop);
+}
+
+addEventListener('resize', () => { resize(); applyLayout(); });
+addEventListener('keydown', e => {
+  keys.add(e.code);
+  if (['Space', 'ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].includes(e.code)) e.preventDefault();
+  if (e.code === 'Space') input.attack = true;
+  if (e.code === 'ShiftLeft' || e.code === 'ShiftRight') input.dash = true;
+  if (e.code === 'KeyE') input.interact = true;
+  if (e.code === 'Tab') { input.swap = true; e.preventDefault(); }
+  if (e.code === 'KeyC') input.inspect = true;
+  if (e.code === 'Escape') {
+    if (sheetOpen || lootOpen) { closeSheet(); closeLoot(); }
+    else togglePause();
+  }
+  if (e.code === 'KeyR') showRig = !showRig;
+  if (e.code === 'KeyM') muted = !muted;
+  if (e.code === 'Enter' && !started) { beginGame(); e.preventDefault(); }
+});
+addEventListener('keyup', e => keys.delete(e.code));
+canvas.addEventListener('pointerdown', e => {
+  const r = canvas.getBoundingClientRect();
+  input.aimX = e.clientX - r.left + cam.x;
+  input.aimY = e.clientY - r.top + cam.y;
+  const hit = elfAt(input.aimX, input.aimY);
+  if (hit) {
+    selected = hit;
+    if (hit !== foe) controlled = hit;
+    openSheet(hit);
+    return;
+  }
+  if (!isMobile()) input.attack = true;
+});
+canvas.addEventListener('pointermove', e => {
+  const r = canvas.getBoundingClientRect();
+  input.aimX = e.clientX - r.left + cam.x;
+  input.aimY = e.clientY - r.top + cam.y;
+});
+
+const stick = document.getElementById('stick');
+const knob = document.getElementById('knob');
+let stickId = null;
+stick.addEventListener('pointerdown', e => { stickId = e.pointerId; stick.setPointerCapture(e.pointerId); moveStick(e); });
+stick.addEventListener('pointermove', e => { if (e.pointerId === stickId) moveStick(e); });
+stick.addEventListener('pointerup', endStick);
+stick.addEventListener('pointercancel', endStick);
+function moveStick(e) {
+  const rect = stick.getBoundingClientRect();
+  const cx = rect.left + rect.width / 2, cy = rect.top + rect.height / 2;
+  let dx = e.clientX - cx, dy = e.clientY - cy;
+  const max = 40, mag = Math.hypot(dx, dy) || 1;
+  const cl = Math.min(max, mag);
+  dx = dx / mag * cl; dy = dy / mag * cl;
+  knob.style.left = (40 + dx) + 'px';
+  knob.style.top = (40 + dy) + 'px';
+  input.x = dx / max; input.y = dy / max;
+}
+function endStick() {
+  stickId = null; input.x = 0; input.y = 0;
+  knob.style.left = '40px'; knob.style.top = '40px';
+}
+document.getElementById('btn-attack').addEventListener('pointerdown', e => { e.preventDefault(); input.attack = true; });
+document.getElementById('btn-dash').addEventListener('pointerdown', e => { e.preventDefault(); input.dash = true; });
+document.getElementById('btn-interact').addEventListener('pointerdown', e => { e.preventDefault(); input.interact = true; });
+document.getElementById('btn-switch').addEventListener('pointerdown', e => { e.preventDefault(); input.swap = true; });
+document.getElementById('btn-sheet').addEventListener('pointerdown', e => { e.preventDefault(); input.inspect = true; });
+document.getElementById('open-sheet').onclick = () => openSheet(controlled);
+document.getElementById('open-bag').onclick = () => openLoot(null);
+document.getElementById('loot-close').onclick = closeLoot;
+document.getElementById('loot').addEventListener('pointerdown', e => { if (e.target.id === 'loot') closeLoot(); });
+document.getElementById('sheet-close').onclick = closeSheet;
+document.getElementById('sheet').addEventListener('pointerdown', e => { if (e.target.id === 'sheet') closeSheet(); });
+document.getElementById('mode-auto').onclick = () => { layout = 'auto'; applyLayout(); };
+document.getElementById('mode-pc').onclick = () => { layout = 'pc'; applyLayout(); };
+document.getElementById('mode-mobile').onclick = () => { layout = 'mobile'; applyLayout(); };
+
+function beginGame() {
+  if (!ready) {
+    wantStart = true;
+    const status = document.getElementById('bootstatus');
+    if (status) status.textContent = 'Still preparing the court. It will open as soon as it is ready.';
+    return;
+  }
+  const boot = document.getElementById('boot');
+  boot.classList.add('gone');
+  boot.style.display = 'none';
+  started = true;
+  paused = false;
+  last = performance.now();
+  say('The court is open. Ask Maelveth if you want the duel.');
+}
+document.getElementById('enter').addEventListener('click', (ev) => {
+  ev.preventDefault();
+  ev.stopPropagation();
+  beginGame();
+});
+document.getElementById('how').onclick = () => {
+  document.getElementById('bootstatus').textContent = 'Start opens the court. Esc pauses. E asks Maelveth to fight, opens chests, or lights braziers. WASD moves. Space strikes.';
+};
+document.getElementById('resume').onclick = () => { paused = false; document.getElementById('pause').classList.remove('show'); };
+document.getElementById('to-title').onclick = showTitle;
+
+(async function boot() {
+  resize();
+  const entries = Object.entries(files);
+  for (const [k, src] of entries) {
+    document.getElementById('bootstatus').textContent = 'Loading ' + k + '…';
+    const img = await loadImage(src);
+    art[k] = noKey.has(k) ? img : keyMagenta(img);
+  }
+  document.getElementById('bootstatus').textContent = 'Stamping the court…';
+  art.ground = stampGround();
+  const sheet = art.arrows;
+  const band = Math.floor(sheet.height / 3);
+  for (let i = 0; i < 3; i++) {
+    const c = document.createElement('canvas');
+    c.width = sheet.width; c.height = band;
+    c.getContext('2d').drawImage(sheet, 0, i * band, sheet.width, band, 0, 0, sheet.width, band);
+    art['arrow' + i] = c;
+  }
+  buildProps();
+  spawnElves();
+  applyLayout();
+  ready = true;
+  document.getElementById('bootstatus').textContent = 'Court is set. Press Start.';
+  if (wantStart) beginGame();
+  requestAnimationFrame(loop);
+})().catch(err => {
+  document.getElementById('bootstatus').textContent = 'Failed to load assets: ' + err;
+});
+</script>
+</body>
+</html>
